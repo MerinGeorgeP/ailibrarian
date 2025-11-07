@@ -8,3 +8,5 @@ transformers
 torch
 passlib[bcrypt]
 python-jose
+streamlit
+requests
