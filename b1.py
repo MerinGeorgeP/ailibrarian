@@ -97,6 +97,7 @@ MODEL_NAME = "all-MiniLM-L6-v2"  # small & effective
 SUMMARIZER_MODEL = "facebook/bart-large-cnn"
 tokenizer = BartTokenizer.from_pretrained(SUMMARIZER_MODEL)
 summarizer_model = BartForConditionalGeneration.from_pretrained(SUMMARIZER_MODEL)
+USERS_DB_PATH = os.path.join(DATA_DIR, "users_db.json")
 
 
 os.makedirs(PDF_DIR, exist_ok=True)
@@ -122,7 +123,12 @@ if os.path.exists(META_PATH):
 else:
     metadata = []
 
-users_db = []  # [{"username": ..., "hashed_password": ...}]
+if os.path.exists(USERS_DB_PATH):
+    with open(USERS_DB_PATH, "r", encoding="utf-8") as f:
+        users_db = json.load(f)
+else:
+    users_db = []
+
 
 
 # Load or initialize FAISS index. We'll use IndexFlatIP (cosine via normalized vectors)
@@ -289,16 +295,13 @@ def signup(username: str = Form(...), password: str = Form(...)):
     hashed_pw = hash_password(password)
     users_db.append({"username": username, "hashed_password": hashed_pw})
 
+    # ✅ Add this block to make users persistent
+    USERS_DB_PATH = os.path.join(DATA_DIR, "users_db.json")
+    with open(USERS_DB_PATH, "w", encoding="utf-8") as f:
+        json.dump(users_db, f, indent=2)
+
     return {"message": f"User '{username}' created successfully"}
 
-@app.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = next((u for u in users_db if u["username"] == form_data.username), None)
-    if not user or not verify_password(form_data.password, user["hashed_password"]):
-        raise HTTPException(status_code=400, detail="Invalid credentials")
-
-    access_token = create_access_token({"sub": user["username"]})
-    return {"access_token": access_token, "token_type": "bearer"}
 
 
 
