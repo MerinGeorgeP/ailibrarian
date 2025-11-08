@@ -70,6 +70,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
@@ -78,9 +79,18 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     except JWTError:
         raise credentials_exception
 
-    user = next((u for u in users_db if u["username"] == username), None)
+    # ✅ Always reload the users DB from file
+    users_path = os.path.join(DATA_DIR, "users_db.json")
+    if not os.path.exists(users_path):
+        raise credentials_exception
+
+    with open(users_path, "r", encoding="utf-8") as f:
+        users = json.load(f)
+
+    user = next((u for u in users if u["username"] == username), None)
     if user is None:
         raise credentials_exception
+
     return user
 
 
@@ -302,6 +312,31 @@ def signup(username: str = Form(...), password: str = Form(...)):
 
     return {"message": f"User '{username}' created successfully"}
 
+
+from fastapi.security import OAuth2PasswordRequestForm
+
+@app.post("/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    username = form_data.username
+    password = form_data.password
+
+    # 🔄 Load users from JSON file every time
+    users_path = os.path.join(DATA_DIR, "users_db.json")
+    if not os.path.exists(users_path):
+        raise HTTPException(status_code=400, detail="No registered users found")
+
+    with open(users_path, "r", encoding="utf-8") as f:
+        users_db = json.load(f)
+
+    user = next((u for u in users_db if u["username"] == username), None)
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid username or password")
+
+    if not verify_password(password, user["hashed_password"]):
+        raise HTTPException(status_code=400, detail="Invalid username or password")
+
+    access_token = create_access_token(data={"sub": username})
+    return {"access_token": access_token, "token_type": "bearer"}
 
 
 
