@@ -34,12 +34,15 @@ def signup(username, password):
 
 
 def login(username, password):
-    data = {"username": username, "password": password}
-    res = requests.post(f"{BACKEND_URL}/login", data=data)
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    data = f"username={username}&password={password}"
+    res = requests.post(f"{BACKEND_URL}/login", data=data, headers=headers)
     if res.status_code == 200:
-        token = res.json()["access_token"]
-        return token
-    return None
+        return res.json()["access_token"]
+    else:
+        print("Login failed:", res.text)  # for debugging
+        return None
+
 
 
 def authorized_request(method, endpoint, **kwargs):
